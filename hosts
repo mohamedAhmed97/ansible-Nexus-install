@@ -1,0 +1,5 @@
+[nexus-ec2]
+ec2-52-87-219-13.compute-1.amazonaws.com
+[nexus-ec2:vars]
+ansible_ssh_private_key_file=~/.ssh/ansible-servers.pem
+ansible_user=ubuntu

@@ -1,0 +1,101 @@
+---
+- name: update server and install packages
+  hosts: nexus-ec2
+  become: True
+  tasks:
+    - name: update apt repo and cahce
+      apt:
+        update_cache: yes
+        force_apt_get: yes
+      become: true
+    - name: install java  8
+      apt: name=openjdk-8-jre-headless
+    - name: install netstate 
+      apt: name=net-tools
+
+- name: download nexus & install install
+  hosts: nexus-ec2
+  become: True
+  tasks:
+    - name: download nexus
+      get_url:
+        url: https://download.sonatype.com/nexus/3/latest-unix.tar.gz
+        dest: /opt
+      register: download_result
+
+    - name: check for nexus directory exist
+      stat:
+        path: /opt/nexus
+      register: stat_result
+        
+    - name: unarchive nexus
+      unarchive:
+        src: "{{download_result.dest}}"
+        dest: /opt
+        remote_src: true
+      when: not stat_result.stat.exists  
+
+    - name: find downloaded file
+      find:
+        paths:
+          - /opt
+        patterns: "nexus-*"
+        file_type: directory
+      register: find_result
+
+        
+    
+    - name: Rename nexus folder
+      shell: "mv {{find_result.files[0].path}} /opt/nexus"
+      when: "not stat_result.stat.exists"
+
+- name: init and run nexus project
+  hosts: nexus-ec2
+  become: true
+  tasks: 
+    - name: create nexus group
+      group: 
+        name: nexus
+        state: present
+      
+    - name: create nexus user
+      user: 
+        name: nexus
+        group: nexus
+            
+    - name: make nexus user owner of nexus folder
+      file:
+        path: /opt/nexus
+        state: directory
+        owner: nexus
+        group: nexus
+        recurse: yes
+    - name: Make nexus user owner of sonatype-work folder
+      lineinfile:
+        path: /opt/nexus/bin/nexus.rc
+        regexp: '#run_as_user=""'
+        line: run_as_user="nexus"
+    - name: start nexus server
+      command: /opt/nexus/bin/nexus start
+
+        
+- name: Verify nexus running
+  hosts: nexus-ec2
+  tasks:
+    - name: Check with ps
+      ansible.builtin.shell: ps aux | grep nexus
+      register: app_status
+    - ansible.builtin.debug: msg={{app_status.stdout_lines}}
+    - name: Wait one minute
+      ansible.builtin.pause:
+        minutes: 1
+    - name: Check with netstat
+      ansible.builtin.shell: netstat -plnt
+      register: app_status
+    - ansible.builtin.debug: msg={{app_status.stdout_lines}}
+
+        
+        
+        
+        
+        
